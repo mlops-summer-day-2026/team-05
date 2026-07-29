@@ -1,0 +1,33 @@
+#!/bin/sh
+# Не даёт закоммитить секреты в публичный репозиторий.
+# Включается один раз: git config core.hooksPath .githooks
+
+red() { printf '\033[31m%s\033[0m\n' "$1"; }
+
+staged=$(git diff --cached --name-only)
+
+# 1. Файлы .env — кроме .env.example
+bad_files=$(echo "$staged" | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$')
+if [ -n "$bad_files" ]; then
+  red "СТОП: пытаетесь закоммитить файл с ключами."
+  echo "$bad_files"
+  echo
+  echo "Репозиторий публичный — ключ отзовут за минуты, и вау-слой умрёт посреди билда."
+  echo "Уберите файл из коммита:  git restore --staged <файл>"
+  exit 1
+fi
+
+# 2. Похожие на ключи строки в содержимом (сам хук не проверяем)
+leak=$(git diff --cached -U0 -- . ':(exclude).githooks/*' \
+  | grep -E '^\+' \
+  | grep -oE '(sk-ant-[A-Za-z0-9_-]{16,}|sk-or-v1-[A-Za-z0-9]{16,}|r8_[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_-]{30,}|[0-9]{8,10}:AA[A-Za-z0-9_-]{30,})')
+if [ -n "$leak" ]; then
+  red "СТОП: в изменениях похоже на настоящий ключ."
+  echo "$leak" | cut -c1-14 | sed 's/$/.../'
+  echo
+  echo "Вынесите значение в .env и читайте его оттуда."
+  echo "Если это точно не ключ:  git commit --no-verify"
+  exit 1
+fi
+
+exit 0

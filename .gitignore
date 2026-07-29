@@ -1,0 +1,21 @@
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Пасхалка с карты — держим локально, репозиторий публичный
+SECRET.md
+
+# Мусор окружения
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Локальные настройки агентов
+.claude/settings.local.json
