@@ -1,8 +1,8 @@
-# __TEAM__ · Вайбкодинг-тимбилдинг «Строим для своих»
+# team-05 · Вайбкодинг-тимбилдинг «Строим для своих»
 
 **14 августа 2026** · [Все команды и правила](https://github.com/mlops-summer-day-2026)
 
-🔗 **Демо вашей команды:** https://mlops-summer-day-2026.github.io/__TEAM__/
+🔗 **Демо вашей команды:** https://mlops-summer-day-2026.github.io/team-05/
 Пока в репозитории нет `index.html` — по ссылке будет 404. Это нормально, она оживёт через минуту после первого пуша.
 
 ---
@@ -54,7 +54,7 @@ gh auth login
 ### 5. Забери репозиторий
 
 ```bash
-gh repo clone mlops-summer-day-2026/__TEAM__ && cd __TEAM__ && git config core.hooksPath .githooks
+gh repo clone mlops-summer-day-2026/team-05 && cd team-05 && git config core.hooksPath .githooks
 ```
 
 Последняя часть включает хук, который не даст случайно закоммитить ключи. Репозиторий публичный, утёкший ключ отзовут за минуты.

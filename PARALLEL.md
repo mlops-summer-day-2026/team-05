@@ -108,14 +108,14 @@ git revert <хеш>             # откатить сломавший, исто�
 рабочую копию:
 
 ```bash
-git worktree add ../__TEAM__-wow
+git worktree add ../team-05-wow
 ```
 
 Появится соседняя папка со своей веткой, там запускаете второго `claude`. Пуш и мерж
 как обычно. Когда закончили:
 
 ```bash
-git worktree remove ../__TEAM__-wow
+git worktree remove ../team-05-wow
 ```
 
 ---
