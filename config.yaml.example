@@ -87,13 +87,15 @@ texts:
   menu_mood: "🎭 Настроение"
   menu_my_channels: "📋 Мои каналы"
 
-  channels_prompt: "Пришли @username или ссылку t.me/name — я проверю канал и добавлю."
-  channel_added: "Канал @{username} добавлен ✅"
-  channel_exists: "Канал @{username} уже в списке."
-  channel_private: |
-    Канал @{username} недоступен публично — он приватный или не существует.
-    Подписка сохранена в режиме поллинга: добавь бота в канал админом,
-    и новые посты будут приходить автоматически.
+  channels_prompt: |
+    Пришли один или несколько каналов — @username или ссылки t.me/name.
+    Можно списком в одном сообщении: через пробел, запятую или каждый с новой строки.
+  channels_added_header: "Итог:"
+  channel_added: "✅ @{username} — добавлен"
+  channel_exists: "ℹ️ @{username} — уже в списке"
+  channel_invalid: "❌ «{raw}» — не похоже на юзернейм канала"
+  channel_private: "🔕 @{username} — приватный; добавлен в режиме поллинга: добавь бота админом"
+  channel_error: "❌ @{username} — не удалось проверить: {error}"
   channel_list: "Мои каналы:"
   channels_empty: "Каналов пока нет — добавь через «➕ Каналы»."
   channel_deleted: "Канал @{username} удалён."
