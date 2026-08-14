@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +143,51 @@ class FallbackConfig(BaseModel):
     keywords_enabled: bool = True
 
 
+class VoiceConfig(BaseModel):
+    """Секция ``voice``: озвучка сводки через edge-tts."""
+
+    enabled: bool = True
+    voice: str = "ru-RU-SvetlanaNeural"
+    rate: str = "+8%"
+    pitch: str = "+0Hz"
+    max_chars: int = 2500
+    target_seconds: int = 45
+    script_enabled: bool = True
+    script_prompt: str = ""
+
+    @field_validator("rate")
+    @classmethod
+    def _rate_format(cls, value: str) -> str:
+        """Проверяет формат скорости речи, ожидаемый edge-tts."""
+        if not re.fullmatch(r"[+-]\d{1,3}%", value):
+            raise ValueError("voice.rate должен быть вида '+8%' или '-10%'")
+        return value
+
+    @field_validator("pitch")
+    @classmethod
+    def _pitch_format(cls, value: str) -> str:
+        """Проверяет формат высоты голоса, ожидаемый edge-tts."""
+        if not re.fullmatch(r"[+-]\d{1,3}Hz", value):
+            raise ValueError("voice.pitch должен быть вида '+0Hz' или '-20Hz'")
+        return value
+
+    @field_validator("max_chars")
+    @classmethod
+    def _chars_in_range(cls, value: int) -> int:
+        """Проверяет разумность лимита символов на озвучку."""
+        if not 100 <= value <= 10_000:
+            raise ValueError("voice.max_chars должен быть в диапазоне 100–10000")
+        return value
+
+    @field_validator("target_seconds")
+    @classmethod
+    def _seconds_positive(cls, value: int) -> int:
+        """Проверяет положительность целевой длительности выпуска."""
+        if value < 5:
+            raise ValueError("voice.target_seconds должен быть >= 5")
+        return value
+
+
 class Settings(BaseModel):
     """Единый объект настроек бота, раздаётся в роутеры через Dispatcher."""
 
@@ -154,6 +200,7 @@ class Settings(BaseModel):
     digest: DigestConfig
     fetch: FetchConfig
     fallback: FallbackConfig
+    voice: VoiceConfig = Field(default_factory=VoiceConfig)
     texts: dict[str, str] = Field(default_factory=dict)
     bot_token: str = ""
     openrouter_api_key: str = ""
