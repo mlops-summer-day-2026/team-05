@@ -206,6 +206,64 @@ class VoiceConfig(BaseModel):
         return value
 
 
+class ImageConfig(BaseModel):
+    """Секция ``image``: иллюстрация к сводке под настроение и смысл новостей.
+
+    Адрес и ключ свои, а не из секции ``llm``: та может указывать на провайдера
+    без генерации изображений, как прямой DeepSeek.
+    """
+
+    enabled: bool = True
+    model: str = "google/gemini-2.5-flash-image"
+    base_url: str = "https://openrouter.ai/api/v1/chat/completions"
+    api_key_env: str = "OPENROUTER_API_KEY"
+    timeout_sec: int = 120
+    retries: int = 1
+    max_posts: int = 5
+    post_chars: int = 200
+    prompt: str = ""
+
+    @field_validator("retries")
+    @classmethod
+    def _retries_in_range(cls, value: int) -> int:
+        """Проверяет разумность числа повторов: каждый стоит денег."""
+        if not 0 <= value <= 3:
+            raise ValueError("image.retries должен быть в диапазоне 0–3")
+        return value
+
+    @field_validator("base_url")
+    @classmethod
+    def _base_url_http(cls, value: str) -> str:
+        """Проверяет, что base_url похож на HTTP-адрес."""
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("image.base_url должен начинаться с http:// или https://")
+        return value
+
+    @field_validator("api_key_env")
+    @classmethod
+    def _api_key_env_non_empty(cls, value: str) -> str:
+        """Проверяет, что имя env-переменной с ключом задано."""
+        if not value.strip():
+            raise ValueError("image.api_key_env не может быть пустым")
+        return value.strip()
+
+    @field_validator("max_posts")
+    @classmethod
+    def _max_posts_positive(cls, value: int) -> int:
+        """Проверяет положительность числа новостей в промпте."""
+        if value < 1:
+            raise ValueError("image.max_posts должен быть >= 1")
+        return value
+
+    @field_validator("post_chars")
+    @classmethod
+    def _post_chars_positive(cls, value: int) -> int:
+        """Проверяет положительность обрезки текста поста."""
+        if value < 20:
+            raise ValueError("image.post_chars должен быть >= 20")
+        return value
+
+
 class Settings(BaseModel):
     """Единый объект настроек бота, раздаётся в роутеры через Dispatcher."""
 
@@ -219,9 +277,11 @@ class Settings(BaseModel):
     fetch: FetchConfig
     fallback: FallbackConfig
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
+    image: ImageConfig = Field(default_factory=ImageConfig)
     texts: dict[str, str] = Field(default_factory=dict)
     bot_token: str = ""
     llm_api_key: str = ""
+    image_api_key: str = ""
     config_path: Path = Field(default=Path("config.yaml"))
 
     @field_validator("moods")
@@ -287,19 +347,22 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return raw
 
 
-def _load_secrets(api_key_env: str) -> tuple[str, str]:
+def _load_secrets(api_key_env: str, image_api_key_env: str) -> tuple[str, str, str]:
     """Читает секреты из .env через python-dotenv.
 
     Ключ LLM берётся из env-переменной, указанной в llm.api_key_env, —
     так один и тот же код работает и с OpenRouter, и с прямым DeepSeek.
+    Картинкам нужен свой ключ: генерацию изображений умеет не всякий провайдер.
 
     :param api_key_env: имя env-переменной с ключом LLM.
-    :return: пара (bot_token, llm_api_key).
+    :param image_api_key_env: имя env-переменной с ключом генератора картинок.
+    :return: тройка (bot_token, llm_api_key, image_api_key).
     """
     load_dotenv()
     return (
         os.getenv("TELEGRAM_BOT_TOKEN", ""),
         os.getenv(api_key_env, ""),
+        os.getenv(image_api_key_env, ""),
     )
 
 
@@ -313,12 +376,15 @@ def load_settings(config_path: Path = Path("config.yaml")) -> Settings:
     raw = _read_yaml(config_path)
     llm_raw = raw.get("llm") or {}
     api_key_env = str(llm_raw.get("api_key_env", "OPENROUTER_API_KEY"))
-    bot_token, api_key = _load_secrets(api_key_env)
+    image_raw = raw.get("image") or {}
+    image_api_key_env = str(image_raw.get("api_key_env", "OPENROUTER_API_KEY"))
+    bot_token, api_key, image_key = _load_secrets(api_key_env, image_api_key_env)
     try:
         return Settings(
             **raw,
             bot_token=bot_token,
             llm_api_key=api_key,
+            image_api_key=image_key,
             config_path=config_path,
         )
     except ValueError as exc:

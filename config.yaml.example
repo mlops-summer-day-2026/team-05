@@ -53,6 +53,25 @@ fetch:
 fallback:
   keywords_enabled: true          # эвристика по ключевым словам, если LLM упал
 
+image:                            # картинка под настроение и смысл новостей
+  enabled: true
+  model: "google/gemini-2.5-flash-image"
+  base_url: "https://openrouter.ai/api/v1/chat/completions"
+  api_key_env: "OPENROUTER_API_KEY"   # свой ключ: DeepSeek картинки не умеет
+  timeout_sec: 120
+  retries: 1                      # повтор, если модель ответила без картинки
+  max_posts: 5                    # сколько новостей уходит в промпт
+  post_chars: 200                 # обрезка текста одной новости
+  prompt: |
+    Атмосферная иллюстрация к новостной сводке.
+    Настроение выпуска: «{label}» — {mood_prompt}.
+    О чём новости: {news}
+
+    Передай общее ощущение от новостей, а не буквальный сюжет.
+    Стиль: плоская векторная графика, крупные выразительные формы,
+    насыщенный цвет, читается с трёх метров на экране телефона.
+    Без единой надписи, буквы, цифры или логотипа в кадре.
+
 voice:                            # озвучка сводки, edge-tts — бесплатно и без ключа
   enabled: true
   voice: "ru-RU-SvetlanaNeural"   # или ru-RU-DmitryNeural — мужской
@@ -123,6 +142,7 @@ texts:
   digest_views_k: "{value}K"
   refresh: "🔄 Обновить"
   other_mood: "🎭 Другое настроение"
+  image_caption: "🎨 {emoji} {label} — так это выглядит"
   voice_button: "🔊 Озвучить"
   voice_recording: "🎙 Записываю выпуск..."
   voice_rebuilding: "🔄 Собираю сводку заново..."

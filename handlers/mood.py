@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.types import (
     BufferedInputFile,
     CallbackQuery,
@@ -14,10 +15,11 @@ from aiogram.types import (
     Message,
 )
 
-from config import Settings
+from config import ConfigError, Settings
 from db import Database
-from services import pipeline, voice
+from services import image, pipeline, voice
 from services.digest import build_digest_text, result_keyboard
+from services.image import ImageError
 from services.pipeline import (
     NoChannelsError,
     NoPostsError,
@@ -26,6 +28,7 @@ from services.pipeline import (
 )
 from services.voice import VoiceError
 
+log = logging.getLogger(__name__)
 router = Router(name="mood")
 
 _MOOD_PREFIX = "mood"
@@ -33,6 +36,7 @@ _REFRESH_PREFIX = "refresh"
 _OTHER_MOOD_CALLBACK = "other_mood"
 _VOICE_PREFIX = "voice"
 _AUDIO_FILENAME = "digest.mp3"
+_IMAGE_FILENAME = "mood.png"
 
 
 def mood_keyboard(settings: Settings) -> InlineKeyboardMarkup:
@@ -148,6 +152,43 @@ async def _run_digest(
         reply_markup=result_keyboard(mood_emoji, settings),
         disable_web_page_preview=True,
     )
+    await _send_mood_image(bot, chat_id, result, settings)
+
+
+async def _send_mood_image(
+    bot: Bot,
+    chat_id: int,
+    result: pipeline.DigestResult,
+    settings: Settings,
+) -> None:
+    """Дорисовывает под сводкой картинку по настроению и смыслу новостей.
+
+    Идёт отдельным сообщением после сводки: генерация занимает секунды,
+    и держать из-за неё текст сводки незачем. Сбой не показываем пользователю —
+    сводка уже доставлена, а сообщение об ошибке на сцене только мешает.
+
+    :param bot: бот.
+    :param chat_id: id чата.
+    :param result: результат пайплайна.
+    :param settings: настройки бота.
+    """
+    if not settings.image.enabled or result.mood is None:
+        return
+    try:
+        await bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+        picture = await image.make_image(result, settings)
+        caption = settings.get_text(
+            "image_caption",
+            emoji=result.mood.emoji,
+            label=result.mood.label,
+        )
+        await bot.send_photo(
+            chat_id,
+            BufferedInputFile(picture, filename=_IMAGE_FILENAME),
+            caption=caption,
+        )
+    except (ImageError, ConfigError, TelegramAPIError) as exc:
+        log.warning("картинка не доехала: %s", exc)
 
 
 @router.callback_query(F.data.startswith(f"{_MOOD_PREFIX}:"))
