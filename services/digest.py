@@ -11,6 +11,7 @@ from models import DigestEntry, Mood
 
 _REFRESH_CALLBACK = "refresh"
 _OTHER_MOOD_CALLBACK = "other_mood"
+_VOICE_CALLBACK = "voice"
 
 
 def format_views(views: int, settings: Settings) -> str:
@@ -117,17 +118,26 @@ def result_keyboard(mood_emoji: str, settings: Settings) -> InlineKeyboardMarkup
     :param settings: настройки бота.
     :return: инлайн-клавиатура.
     """
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+    rows = []
+    if settings.voice.enabled:
+        rows.append(
             [
                 InlineKeyboardButton(
-                    text=settings.get_text("refresh"),
-                    callback_data=f"{_REFRESH_CALLBACK}:{mood_emoji}",
-                ),
-                InlineKeyboardButton(
-                    text=settings.get_text("other_mood"),
-                    callback_data=_OTHER_MOOD_CALLBACK,
-                ),
+                    text=settings.get_text("voice_button"),
+                    callback_data=f"{_VOICE_CALLBACK}:{mood_emoji}",
+                )
             ]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=settings.get_text("refresh"),
+                callback_data=f"{_REFRESH_CALLBACK}:{mood_emoji}",
+            ),
+            InlineKeyboardButton(
+                text=settings.get_text("other_mood"),
+                callback_data=_OTHER_MOOD_CALLBACK,
+            ),
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
