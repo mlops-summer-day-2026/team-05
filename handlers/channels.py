@@ -1,6 +1,9 @@
-"""Слой представления: добавление, просмотр и удаление каналов."""
+"""Слой представления: добавление (в т.ч. списком), просмотр и удаление каналов."""
 
 from __future__ import annotations
+
+import asyncio
+import re
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -16,10 +19,11 @@ from services.fetcher import ChannelUnavailableError, FetchError
 router = Router(name="channels")
 
 _DELETE_PREFIX = "delch"
+_TOKEN_RE = re.compile(r"[\s,;]+")
 
 
 class AddChannel(StatesGroup):
-    """FSM-состояния добавления канала."""
+    """FSM-состояния добавления каналов."""
 
     waiting_username = State()
 
@@ -96,34 +100,73 @@ async def on_delete_channel(callback: CallbackQuery, settings: Settings, db: Dat
     await callback.message.edit_text(text, reply_markup=reply_markup)
 
 
-async def _add_channel(message: Message, settings: Settings, db: Database) -> str:
-    """Добавляет канал: нормализует имя, проверяет доступность, сохраняет.
+def _split_tokens(text: str) -> list[str]:
+    """Разбивает сообщение на токены-кандидаты в юзернеймы.
+
+    :param text: сообщение пользователя.
+    :return: токены в порядке ввода, без пустышек и дублей.
+    """
+    seen: set[str] = set()
+    tokens: list[str] = []
+    for raw in _TOKEN_RE.split(text.strip()):
+        token = raw.strip()
+        if token and token not in seen:
+            seen.add(token)
+            tokens.append(token)
+    return tokens
+
+
+async def _add_channels(message: Message, settings: Settings, db: Database) -> tuple[str, bool]:
+    """Добавляет каналы списком: нормализует, проверяет доступность, сохраняет.
 
     :param message: сообщение пользователя.
     :param settings: настройки бота.
     :param db: доступ к БД.
-    :return: текст ответа пользователю.
+    :return: пара (текст ответа, встретился ли хотя бы один валидный юзернейм).
     """
-    username = fetcher.normalize_username(message.text or "")
-    if username is None:
-        return settings.get_text("channels_prompt")
-    if await db.get_channel(message.from_user.id, username) is not None:
-        return settings.get_text("channel_exists", username=username)
+    tokens = _split_tokens(message.text or "")
+    if not tokens:
+        return settings.get_text("channels_prompt"), False
+
+    lines: list[str] = []
+    has_valid = False
     checker = fetcher.Fetcher(settings.fetch)
-    mode = "public"
     try:
-        try:
-            await checker.check_available(username)
-        except ChannelUnavailableError:
-            mode = "admin_poll"
-    except FetchError as exc:
-        return settings.get_text("error", error=str(exc))
+        for token in tokens:
+            username = fetcher.normalize_username(token)
+            if username is None:
+                lines.append(settings.get_text("channel_invalid", raw=token))
+                continue
+            has_valid = True
+            if await db.get_channel(message.from_user.id, username) is not None:
+                lines.append(settings.get_text("channel_exists", username=username))
+                continue
+            mode = "public"
+            try:
+                try:
+                    await checker.check_available(username)
+                except ChannelUnavailableError:
+                    mode = "admin_poll"
+            except FetchError as exc:
+                lines.append(
+                    settings.get_text("channel_error", username=username, error=exc)
+                )
+                continue
+            await db.add_channel(message.from_user.id, username, mode=mode)
+            if mode == "admin_poll":
+                lines.append(settings.get_text("channel_private", username=username))
+            else:
+                lines.append(settings.get_text("channel_added", username=username))
+            await asyncio.sleep(settings.fetch.request_delay_sec)
     finally:
         await checker.aclose()
-    await db.add_channel(message.from_user.id, username, mode=mode)
-    if mode == "admin_poll":
-        return settings.get_text("channel_private", username=username)
-    return settings.get_text("channel_added", username=username)
+
+    if not has_valid:
+        return "\n".join(lines) + f"\n\n{settings.get_text('channels_prompt')}", False
+    text = "\n".join(lines)
+    if len(lines) > 1:
+        text = f"{settings.get_text('channels_added_header')}\n{text}"
+    return text, True
 
 
 @router.message(AddChannel.waiting_username, F.text)
@@ -133,15 +176,16 @@ async def on_username(
     settings: Settings,
     db: Database,
 ) -> None:
-    """Обрабатывает ввод юзернейма канала в FSM-состоянии.
+    """Обрабатывает ввод юзернеймов каналов в FSM-состоянии.
 
     :param message: сообщение пользователя.
     :param state: состояние FSM.
     :param settings: настройки бота.
     :param db: доступ к БД.
     """
-    reply = await _add_channel(message, settings, db)
-    await state.clear()
+    reply, done = await _add_channels(message, settings, db)
+    if done:
+        await state.clear()
     await message.answer(reply)
 
 
