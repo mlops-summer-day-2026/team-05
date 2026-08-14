@@ -1,0 +1,106 @@
+# Вся кастомизация бота — здесь. Секреты (токены) живут в .env и сюда не кладутся.
+
+bot:
+  name: "Настроение в каналах"
+  admin_ids: [123456789]          # кому доступен /reload
+
+moods:                            # кнопки-эмодзи и их смысл; набор меняется правкой файла
+  - emoji: "😂"
+    label: "Смешное"
+    prompt: "юмор, мемы, забавные ситуации"
+    score_threshold: 7
+  - emoji: "🔥"
+    label: "Горячее"
+    prompt: "сенсации, важные новости, скандалы"
+    score_threshold: 7
+  - emoji: "💡"
+    label: "Идеи"
+    prompt: "инсайты, неочевидные мысли, вдохновение"
+    score_threshold: 6
+
+llm:
+  model: "openai/gpt-4o-mini"     # модель OpenRouter
+  max_tokens: 4000
+  temperature: 0.2
+  batch_size: 30                  # постов на один вызов LLM
+  timeout_sec: 90
+
+period:
+  default_hours: 24
+  presets: [3, 6, 12, 24]         # кнопки выбора периода
+  min_hours: 1
+  max_hours: 72
+
+digest:
+  top_n: 10                       # сколько постов в сводке
+  text_limit: 200                 # обрезка текста поста, символов
+  min_score_default: 7            # порог, если не задан у настроения
+  show_views: true
+  show_reasons: true              # показывать объяснение LLM «почему подходит»
+
+fetch:
+  max_pages_per_channel: 3        # глубина парсинга t.me/s
+  request_delay_sec: 1.0          # пауза между запросами (анти-429)
+  cache_minutes: 30               # свежесть кеша постов
+
+fallback:
+  keywords_enabled: true          # эвристика по ключевым словам, если LLM упал
+
+texts:
+  start: |
+    Привет! Я бот «Настроение в каналах» 🎭
+    Добавь интересные каналы, выбери период и нажми эмодзи-настроение —
+    я соберу только подходящие посты.
+
+  menu: "Главное меню"
+  menu_channels: "➕ Каналы"
+  menu_period: "⏱ Период"
+  menu_mood: "🎭 Настроение"
+  menu_my_channels: "📋 Мои каналы"
+
+  channels_prompt: "Пришли @username или ссылку t.me/name — я проверю канал и добавлю."
+  channel_added: "Канал @{username} добавлен ✅"
+  channel_exists: "Канал @{username} уже в списке."
+  channel_private: |
+    Канал @{username} недоступен публично — он приватный или не существует.
+    Подписка сохранена в режиме поллинга: добавь бота в канал админом,
+    и новые посты будут приходить автоматически.
+  channel_list: "Мои каналы:"
+  channels_empty: "Каналов пока нет — добавь через «➕ Каналы»."
+  channel_deleted: "Канал @{username} удалён."
+  channel_delete: "🗑 Удалить"
+  channel_mode_public: "публичный"
+  channel_mode_poll: "поллинг"
+
+  choose_period: "Выбери период: {hours} ч (по умолчанию) — или пришли число часов."
+  period_set: "Период сохранён: {hours} ч ⏱"
+  invalid_period: "Нужно целое число от {min} до {max} часов."
+  meaning_of_life: "Смысл жизни найден. Можно расходиться"
+
+  choose_mood: "Какое настроение ищем?"
+  analyzing: "🔍 Анализирую {count} постов за {hours} ч..."
+  analyzing_batch: "🔍 Обработано {done}/{total} постов..."
+
+  digest_header: "🎭 Настроение: {emoji} {label}"
+  digest_meta: "📡 Каналы: {channels} | Период: {hours} ч"
+  digest_found: "Найдено: {total} → топ-{top}"
+  digest_item: |
+    {num}. [{score}/10] {text}
+    {meta}
+    {url}
+  digest_views_line: "{views} просмотров"
+  digest_views_k: "{value}K"
+  refresh: "🔄 Обновить"
+  other_mood: "🎭 Другое настроение"
+
+  no_channels: "Сначала добавь каналы — кнопка «➕ Каналы»."
+  no_results: "За этот период ничего подходящего не нашлось. Попробуй другой период или настроение."
+  llm_failed: "⚠️ LLM недоступен, показываю упрощённый фильтр."
+  llm_failed_no_fallback: "⚠️ LLM недоступен, а фолбэк выключен. Попробуй позже."
+  unknown: "Не понимаю. Воспользуйся кнопками меню."
+  error: "Что-то пошло не так: {error}"
+
+  cancel: "↩️ Меню"
+  cancelled: "Возврат в меню."
+  reload_ok: "✅ Конфиг перечитан."
+  reload_denied: "⛔ Недоступно."
