@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VibeNews — бот в Telegram</title>
+<meta name="description" content="Сводка постов из твоих телеграм-каналов под настроение, с озвучкой.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎭</text></svg>">
+
+<!-- Без JS страница всё равно уедет на бота -->
+<meta http-equiv="refresh" content="1; url=https://t.me/vibe_news_mlops_bot">
+
+<meta property="og:title" content="VibeNews — бот в Telegram">
+<meta property="og:description" content="Сводка постов из твоих телеграм-каналов под настроение, с озвучкой.">
+<style>
+  :root {
+    --bg: #f2f5f8;
+    --card: #ffffff;
+    --ink: #10202c;
+    --muted: #5d7183;
+    --brand: #229ed9;
+    --brand-ink: #ffffff;
+    --ring: rgba(34, 158, 217, .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1621;
+      --card: #17212b;
+      --ink: #f4f8fb;
+      --muted: #93a8ba;
+      --brand: #3aa8e0;
+      --brand-ink: #06131c;
+      --ring: rgba(58, 168, 224, .45);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 24px;
+    padding: 40px 28px;
+    width: min(100%, 460px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .12);
+  }
+
+  .logo {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 24px;
+    border-radius: 28px;
+    background: var(--brand);
+    display: grid;
+    place-items: center;
+    font-size: 52px;
+    line-height: 1;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: clamp(30px, 8vw, 40px);
+    letter-spacing: -.02em;
+  }
+
+  p.tagline {
+    margin: 0 0 32px;
+    font-size: clamp(17px, 4.4vw, 20px);
+    color: var(--muted);
+  }
+
+  a.cta {
+    display: block;
+    background: var(--brand);
+    color: var(--brand-ink);
+    text-decoration: none;
+    font-size: clamp(19px, 5vw, 23px);
+    font-weight: 700;
+    padding: 22px 24px;
+    border-radius: 16px;
+    min-height: 64px;
+  }
+
+  a.cta:hover { filter: brightness(1.07); }
+  a.cta:focus-visible { outline: 4px solid var(--ring); outline-offset: 3px; }
+  a.cta:active { transform: translateY(1px); }
+
+  .handle {
+    display: block;
+    margin-top: 18px;
+    font-size: 16px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  .redirect-note {
+    margin: 26px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card { animation: rise .35s ease-out both; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: none; }
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="logo" aria-hidden="true">🎭</div>
+    <h1>VibeNews</h1>
+    <p class="tagline">Сводка твоих телеграм-каналов под настроение — и голосом.</p>
+
+    <a class="cta" href="https://t.me/vibe_news_mlops_bot">Открыть бота в Telegram</a>
+    <a class="handle" href="https://t.me/vibe_news_mlops_bot">@vibe_news_mlops_bot</a>
+
+    <p class="redirect-note">Открываем автоматически. Не сработало — жми кнопку.</p>
+  </main>
+
+  <script>
+    // replace, а не href: чтобы «назад» не возвращал на эту же страницу по кругу
+    location.replace("https://t.me/vibe_news_mlops_bot");
+  </script>
+</body>
+</html>
