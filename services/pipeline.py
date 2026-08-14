@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -15,6 +16,8 @@ from db import Database
 from models import Channel, DigestEntry, Mood, Post
 from services import fetcher
 from services.classifier import Classifier, LLMError
+
+log = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[str], Awaitable[None]]
 _UPDATES_OFFSET_KEY = "get_updates_offset"
@@ -253,7 +256,19 @@ async def run_pipeline(
             cached = await db.get_posts_since(channel.id, since.isoformat())
             posts.extend(_fill_channel_meta(cached, channel.username))
     if not posts:
+        log.warning(
+            "Постов не найдено: каналов %s, окно %s ч (с %s)",
+            len(channels),
+            hours,
+            since.isoformat(timespec="minutes"),
+        )
         raise NoPostsError("постов нет")
+    log.info(
+        "Собрано %s постов из %s каналов за %s ч",
+        len(posts),
+        len(channels),
+        hours,
+    )
     posts.sort(key=lambda p: p.published, reverse=True)
     total = len(posts)
 
@@ -267,7 +282,7 @@ async def run_pipeline(
         total_posts=total,
     )
     try:
-        classifier = Classifier(settings.llm, settings.openrouter_api_key)
+        classifier = Classifier(settings.llm, settings.llm_api_key)
         try:
             entries = await classifier.classify(posts, mood)
         finally:

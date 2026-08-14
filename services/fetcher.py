@@ -84,21 +84,30 @@ def parse_preview_html(html: str, username: str) -> list[Post]:
     """
     soup = BeautifulSoup(html, "html.parser")
     posts: list[Post] = []
-    for wrap in soup.select(".tgme_widget_message_wrap"):
+    wraps = soup.select(".tgme_widget_message_wrap")
+    skipped = {"no_message": 0, "no_date": 0, "no_text": 0, "no_post_id": 0}
+    for wrap in wraps:
         tag = wrap.select_one(".tgme_widget_message")
         if tag is None:
+            skipped["no_message"] += 1
             continue
         date_tag = wrap.select_one("time")
         if date_tag is None or not date_tag.get("datetime"):
+            skipped["no_date"] += 1
             continue
         text = _extract_text(tag)
         if not text:
+            skipped["no_text"] += 1
             continue
-        post_id = wrap.get("data-post", "").split("/")[-1]
+        post_id = _extract_post_id(wrap, tag)
         if not post_id:
+            skipped["no_post_id"] += 1
             continue
         link_tag = wrap.select_one("a.tgme_widget_message_date")
-        url = link_tag.get("href", f"https://t.me/{username}/{post_id}") if link_tag else f"https://t.me/{username}/{post_id}"
+        if link_tag is not None:
+            url = link_tag.get("href", f"https://t.me/{username}/{post_id}")
+        else:
+            url = f"https://t.me/{username}/{post_id}"
         posts.append(
             Post(
                 channel_username=username,
@@ -109,7 +118,34 @@ def parse_preview_html(html: str, username: str) -> list[Post]:
                 url=url,
             )
         )
+    log.info(
+        "Страница @%s: обёрток %s, постов %s, пропущено %s",
+        username,
+        len(wraps),
+        len(posts),
+        skipped,
+    )
     return posts
+
+
+def _extract_post_id(wrap: Any, tag: Any) -> str:
+    """Достаёт идентификатор поста из разных мест разметки.
+
+    data-post в разных версиях превью лежит то на обёртке, то на внутреннем
+    сообщении; страховка — числовой хвост ссылки на дату.
+
+    :param wrap: тег обёртки сообщения.
+    :param tag: тег самого сообщения.
+    :return: идентификатор поста или пустая строка.
+    """
+    data_post = wrap.get("data-post") or tag.get("data-post") or ""
+    post_id = data_post.split("/")[-1]
+    if post_id:
+        return post_id
+    link_tag = wrap.select_one("a.tgme_widget_message_date")
+    if link_tag is None:
+        return ""
+    return link_tag.get("href", "").rstrip("/").split("/")[-1]
 
 
 class Fetcher:
@@ -210,17 +246,26 @@ class Fetcher:
 def _published_after(published_iso: str, since: datetime) -> bool:
     """Проверяет, что ISO-время публикации не раньше since.
 
+    Форматы даты на t.me/s менялись; нераспознаваемый формат считаем свежим —
+    лучше включить пост, чем молча потерять.
+
     :param published_iso: ISO-строка из тега time.
     :param since: нижняя граница.
     :return: True, если пост свежий.
     """
-    try:
-        published = datetime.fromisoformat(published_iso.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    if published.tzinfo is None:
-        published = published.replace(tzinfo=timezone.utc)
-    return published >= since
+    candidates = [published_iso, published_iso.replace("Z", "+00:00")]
+    if "+0000" in published_iso or published_iso.endswith("0000"):
+        candidates.append(published_iso.replace("+0000", "+00:00"))
+    for candidate in candidates:
+        try:
+            published = datetime.fromisoformat(candidate)
+        except ValueError:
+            continue
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=timezone.utc)
+        return published >= since
+    log.warning("Нераспознанный формат даты поста %r — считаю свежим", published_iso)
+    return True
 
 
 async def get_updates(bot_token: str, offset: int = 0) -> list[dict[str, Any]]:

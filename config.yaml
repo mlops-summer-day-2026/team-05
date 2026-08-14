@@ -8,18 +8,29 @@ moods:                            # кнопки-эмодзи и их смысл
   - emoji: "😂"
     label: "Смешное"
     prompt: "юмор, мемы, забавные ситуации"
-    score_threshold: 7
-  - emoji: "🔥"
-    label: "Горячее"
-    prompt: "сенсации, важные новости, скандалы"
-    score_threshold: 7
-  - emoji: "💡"
-    label: "Идеи"
-    prompt: "инсайты, неочевидные мысли, вдохновение"
+    score_threshold: 6
+  - emoji: "✅"
+    label: "Хорошее"
+    prompt: "хорошие новости"
+    score_threshold: 6
+  - emoji: "❌"
+    label: "Плохие"
+    prompt: "плохие новости"
+    score_threshold: 6
+  - emoji: "➖"
+    label: "Нейтрально"
+    prompt: "нейтральные новости"
     score_threshold: 6
 
 llm:
-  model: "deepseek/deepseek-chat"     # модель OpenRouter
+  # Провайдер — прямой DeepSeek (ключ DEEPSEEK_API_KEY в .env):
+  model: "deepseek-chat"
+  base_url: "https://api.deepseek.com/chat/completions"
+  api_key_env: "DEEPSEEK_API_KEY"
+  # Альтернатива — OpenRouter (ключ OPENROUTER_API_KEY в .env, модели вида deepseek/deepseek-chat):
+  # base_url: "https://openrouter.ai/api/v1/chat/completions"
+  # api_key_env: "OPENROUTER_API_KEY"
+  # model: "deepseek/deepseek-chat"
   max_tokens: 4000
   temperature: 0.2
   batch_size: 30                  # постов на один вызов LLM
@@ -94,6 +105,7 @@ texts:
   other_mood: "🎭 Другое настроение"
 
   no_channels: "Сначала добавь каналы — кнопка «➕ Каналы»."
+  no_posts: "За {hours} ч в твоих каналах не нашлось ни одного поста. Попробуй больший период."
   no_results: "За этот период ничего подходящего не нашлось. Попробуй другой период или настроение."
   llm_failed: "⚠️ LLM недоступен, показываю упрощённый фильтр."
   llm_failed_no_fallback: "⚠️ LLM недоступен, а фолбэк выключен. Попробуй позже."

@@ -107,8 +107,11 @@ async def _run_digest(
         )
         return
     except NoPostsError:
+        hours = await db.get_hours(tg_id, settings.period.default_hours)
         await bot.edit_message_text(
-            settings.get_text("no_results"), chat_id=chat_id, message_id=status.message_id
+            settings.get_text("no_posts", hours=hours),
+            chat_id=chat_id,
+            message_id=status.message_id,
         )
         return
     except NoResultsError:

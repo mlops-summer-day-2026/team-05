@@ -14,7 +14,6 @@ from models import DigestEntry, Mood, Post
 
 log = logging.getLogger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _JSON_ARRAY_RE = re.compile(
     r'\{\s*"id"\s*:\s*(\d+)[^{}]*?"score"\s*:\s*(\d+)[^{}]*?"reason"\s*:\s*"([^"]*)"\s*\}'
 )
@@ -96,18 +95,33 @@ def build_prompt(posts: list[Post], mood: Mood, first_id: int = 1) -> str:
     )
 
 
+def _normalize_api_key(raw_key: str) -> str:
+    """Приводит ключ API к каноническому виду.
+
+    Пользователи иногда вставляют ключ вместе с префиксом Bearer или с
+    пробелами по краям — такое OpenRouter не принимает.
+
+    :param raw_key: сырой ключ из .env.
+    :return: нормализованный ключ.
+    """
+    key = raw_key.strip()
+    if key.startswith("Bearer "):
+        key = key[len("Bearer ") :].strip()
+    return key
+
+
 class Classifier:
-    """Клиент классификации постов через OpenRouter."""
+    """Клиент классификации постов через LLM-провайдера (OpenRouter/DeepSeek)."""
 
     def __init__(self, config: LlmConfig, api_key: str, client: httpx.AsyncClient | None = None) -> None:
         """Создаёт классификатор.
 
         :param config: секция llm настроек.
-        :param api_key: ключ OpenRouter.
+        :param api_key: ключ провайдера из env.
         :param client: готовый httpx-клиент (для тестов).
         """
         self._config = config
-        self._api_key = api_key
+        self._api_key = _normalize_api_key(api_key)
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=config.timeout_sec)
 
@@ -116,15 +130,48 @@ class Classifier:
         if self._owns_client:
             await self._client.aclose()
 
+    def _log_key_diagnostics(self) -> None:
+        """Логирует замаскированную информацию о ключе для диагностики.
+
+        Полный ключ в лог не попадает — только длина и первые символы.
+        """
+        if not self._api_key:
+            log.warning(
+                "Ключ LLM не задан: заполни %s в .env",
+                self._config.api_key_env,
+            )
+            return
+        prefix = self._api_key[:12]
+        log.info(
+            "Ключ LLM: env=%s, длина=%s, начало=%r",
+            self._config.api_key_env,
+            len(self._api_key),
+            prefix,
+        )
+        if "openrouter" in self._config.base_url and not self._api_key.startswith("sk-or-"):
+            log.warning(
+                "Ключ не похож на OpenRouter (ожидается sk-or-...): похоже, в %s лежит "
+                "ключ другого провайдера — либо замени ключ, либо переключи llm.base_url "
+                "на api.deepseek.com и llm.api_key_env на DEEPSEEK_API_KEY",
+                self._config.api_key_env,
+            )
+        if "deepseek.com" in self._config.base_url and self._config.api_key_env != "DEEPSEEK_API_KEY":
+            log.warning(
+                "base_url указывает на DeepSeek, но ключ берётся из %s — вероятно, нужен "
+                "llm.api_key_env: DEEPSEEK_API_KEY",
+                self._config.api_key_env,
+            )
+
     async def _post(self, content: str) -> str:
-        """Отправляет один запрос к OpenRouter и возвращает текст ответа.
+        """Отправляет один запрос к LLM-провайдеру и возвращает текст ответа.
 
         :param content: текст пользовательского сообщения.
         :return: ответ модели.
         :raises LLMError: LLM недоступен.
         """
+        self._log_key_diagnostics()
         if not self._api_key:
-            raise LLMError("OPENROUTER_API_KEY не задан")
+            raise LLMError(f"{self._config.api_key_env} не задан")
         body = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": content}],
@@ -137,26 +184,34 @@ class Classifier:
             "Content-Type": "application/json",
         }
         log.info(
-            "Запрос к OpenRouter: модель=%s, промпт=%s символов, max_tokens=%s",
+            "Запрос к LLM: url=%s, модель=%s, промпт=%s символов, max_tokens=%s",
+            self._config.base_url,
             self._config.model,
             len(content),
             self._config.max_tokens,
         )
         try:
-            response = await self._client.post(_OPENROUTER_URL, json=body, headers=headers)
+            response = await self._client.post(self._config.base_url, json=body, headers=headers)
         except httpx.HTTPError as exc:
-            log.warning("Сетевая ошибка OpenRouter: %s", exc)
-            raise LLMError(f"сетевая ошибка OpenRouter: {exc}") from exc
+            log.warning("Сетевая ошибка LLM (%s): %s", self._config.base_url, exc)
+            raise LLMError(f"сетевая ошибка LLM: {exc}") from exc
         if response.status_code != 200:
-            log.warning("OpenRouter ответил %s: %s", response.status_code, response.text[:300])
-            raise LLMError(f"OpenRouter ответил {response.status_code}")
+            log.warning(
+                "LLM ответил %s (%s): %s",
+                response.status_code,
+                self._config.base_url,
+                response.text[:300],
+            )
+            if response.status_code in (401, 403):
+                self._log_key_diagnostics()
+            raise LLMError(f"LLM ответил {response.status_code}")
         payload = response.json()
         try:
             content = payload["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
-            log.warning("Неожиданный формат ответа OpenRouter: %r", payload)
-            raise LLMError(f"неожиданный формат ответа OpenRouter: {payload!r}") from exc
-        log.info("Ответ OpenRouter получен: %s символов", len(content))
+            log.warning("Неожиданный формат ответа LLM: %r", payload)
+            raise LLMError(f"неожиданный формат ответа LLM: {payload!r}") from exc
+        log.info("Ответ LLM получен: %s символов", len(content))
         return content
 
     async def _classify_batch(

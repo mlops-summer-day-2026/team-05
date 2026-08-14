@@ -20,7 +20,10 @@ _DB_PATH = Path("bot.db")
 
 async def main() -> None:
     """Инициализирует бота и запускает polling."""
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    # Сторонние библиотеки шумят DEBUG-сообщениями — глушим, чтобы лог читался.
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     try:
         settings = load_settings()
     except ConfigError as exc:
@@ -29,6 +32,12 @@ async def main() -> None:
     if not settings.bot_token:
         log.error("TELEGRAM_BOT_TOKEN не задан в .env")
         sys.exit(1)
+    if not settings.llm_api_key:
+        log.warning(
+            "Ключ LLM не задан (%s в .env пуст) — сводки будут работать через фолбэк "
+            "по ключевым словам",
+            settings.llm.api_key_env,
+        )
 
     db = Database(_DB_PATH)
     await db.init()

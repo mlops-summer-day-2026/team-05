@@ -65,6 +65,8 @@ class LlmConfig(BaseModel):
     """Секция ``llm``."""
 
     model: str
+    base_url: str = "https://openrouter.ai/api/v1/chat/completions"
+    api_key_env: str = "OPENROUTER_API_KEY"
     max_tokens: int = 4000
     temperature: float = 0.2
     batch_size: int = 30
@@ -77,6 +79,22 @@ class LlmConfig(BaseModel):
         if value < 1:
             raise ValueError("llm.batch_size должен быть >= 1")
         return value
+
+    @field_validator("base_url")
+    @classmethod
+    def _base_url_http(cls, value: str) -> str:
+        """Проверяет, что base_url похож на HTTP-адрес."""
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("llm.base_url должен начинаться с http:// или https://")
+        return value
+
+    @field_validator("api_key_env")
+    @classmethod
+    def _api_key_env_non_empty(cls, value: str) -> str:
+        """Проверяет, что имя env-переменной с ключом задано."""
+        if not value.strip():
+            raise ValueError("llm.api_key_env не может быть пустым")
+        return value.strip()
 
 
 class PeriodConfig(BaseModel):
@@ -156,7 +174,7 @@ class Settings(BaseModel):
     fallback: FallbackConfig
     texts: dict[str, str] = Field(default_factory=dict)
     bot_token: str = ""
-    openrouter_api_key: str = ""
+    llm_api_key: str = ""
     config_path: Path = Field(default=Path("config.yaml"))
 
     @field_validator("moods")
@@ -222,13 +240,20 @@ def _read_yaml(path: Path) -> dict[str, Any]:
     return raw
 
 
-def _load_secrets() -> tuple[str, str]:
+def _load_secrets(api_key_env: str) -> tuple[str, str]:
     """Читает секреты из .env через python-dotenv.
 
-    :return: пара (bot_token, openrouter_api_key).
+    Ключ LLM берётся из env-переменной, указанной в llm.api_key_env, —
+    так один и тот же код работает и с OpenRouter, и с прямым DeepSeek.
+
+    :param api_key_env: имя env-переменной с ключом LLM.
+    :return: пара (bot_token, llm_api_key).
     """
     load_dotenv()
-    return os.getenv("TELEGRAM_BOT_TOKEN", ""), os.getenv("OPENROUTER_API_KEY", "")
+    return (
+        os.getenv("TELEGRAM_BOT_TOKEN", ""),
+        os.getenv(api_key_env, ""),
+    )
 
 
 def load_settings(config_path: Path = Path("config.yaml")) -> Settings:
@@ -239,12 +264,14 @@ def load_settings(config_path: Path = Path("config.yaml")) -> Settings:
     :raises ConfigError: конфиг невалиден.
     """
     raw = _read_yaml(config_path)
-    bot_token, api_key = _load_secrets()
+    llm_raw = raw.get("llm") or {}
+    api_key_env = str(llm_raw.get("api_key_env", "OPENROUTER_API_KEY"))
+    bot_token, api_key = _load_secrets(api_key_env)
     try:
         return Settings(
             **raw,
             bot_token=bot_token,
-            openrouter_api_key=api_key,
+            llm_api_key=api_key,
             config_path=config_path,
         )
     except ValueError as exc:
