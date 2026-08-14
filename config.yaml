@@ -18,7 +18,7 @@ moods:                            # кнопки-эмодзи и их смысл
     prompt: "плохие новости"
     score_threshold: 6
   - emoji: "➖"
-    label: "Нейтрально"
+    label: "Нейтральное"
     prompt: "нейтральные новости"
     score_threshold: 6
 

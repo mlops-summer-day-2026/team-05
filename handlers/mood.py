@@ -43,8 +43,8 @@ def mood_keyboard(settings: Settings) -> InlineKeyboardMarkup:
                     text=f"{mood.emoji} {mood.label}",
                     callback_data=f"{_MOOD_PREFIX}:{mood.emoji}",
                 )
-                for mood in settings.moods
             ]
+            for mood in settings.moods
         ]
     )
 

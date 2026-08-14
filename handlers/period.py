@@ -34,8 +34,8 @@ def _presets_keyboard(settings: Settings) -> InlineKeyboardMarkup:
                     text=f"{hours} ч",
                     callback_data=f"{_SET_HOURS_PREFIX}:{hours}",
                 )
-                for hours in settings.period.presets
             ]
+            for hours in settings.period.presets
         ]
     )
 
